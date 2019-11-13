@@ -3,6 +3,8 @@
 In addition to generating Scala code for GRPC as it is currently done in ScalaPB, 
 it would be great to help reduce writing boilerplate code and standardize on code by adding code generation for:
 
+Following would be generated based on https://github.com/aksharp/grpc-poc/blob/master/src/main/protobuf/hello.proto
+
 #### 1. GRPC Server (to use as main method for the app)
 ##### Generated code example in this package: `aksharp.grpc.server`
 #### 2. GRPC Client (to standardize consumption of GRPC endpoints from other services and easily swap test double)

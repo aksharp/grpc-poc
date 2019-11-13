@@ -1,7 +1,5 @@
 syntax = "proto3";
 
-//import "google/api/annotations.proto";
-
 import "scalapb/scalapb.proto";
 
 option (scalapb.options) = {
@@ -9,36 +7,25 @@ option (scalapb.options) = {
   package_name: "aksharp.grpc"
   flat_package: true
   single_file: true
-//  import: "com.thesamet.pb.MyType"
-//  import: "com.thesamet.other._"
-//  preamble: "sealed trait BaseMessage"
-//  preamble: "sealed trait CommonMessage"
   lenses: true
-//  retain_source_code_info: false
-//  no_default_values_in_constructor: false
-//  preserve_unknown_fields: false
-//  enum_value_naming: CAMEL_CASE
 };
 
 package com.example.protos;
 
-// The greeting service definition.
 service Greeter {
-    // Sends a greeting
-    rpc SayHello (HelloRequest) returns (HelloReply) {
-//        option (google.api.http) = {
-//            get: "/api/greeter/hello"
-//        };
-    }
+    rpc SayHello (HelloRequest) returns (HelloReply) {}
 }
 
 service Yeller {
     rpc Yell (YellRequest) returns (YellReply) {}
 }
 
-// The request message containing the user's name.
 message HelloRequest {
     string name = 1;
+}
+
+message HelloReply {
+    string message = 1;
 }
 
 message YellRequest {
@@ -46,10 +33,5 @@ message YellRequest {
 }
 
 message YellReply{
-    string message = 1;
-}
-
-// The response message containing the greetings
-message HelloReply {
     string message = 1;
 }
