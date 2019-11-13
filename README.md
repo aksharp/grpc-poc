@@ -34,3 +34,8 @@ https://github.com/aksharp/grpc-poc/tree/master/src/test/scala/aksharp
 ##### Generated code example in this package: `aksharp.grpc.mock.server`
 https://github.com/aksharp/grpc-poc/tree/master/src/main/scala/aksharp/grpc/mock/server 
 
+
+
+
+##
+This project is runnable. Just use `sbt run` and select which Main method you'd like to run.
