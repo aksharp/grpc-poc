@@ -1,7 +1,7 @@
 ## ScalaPB feature request: Server/Client/Mock/Impl gRPC Generators 
 
 In addition to generating Scala code for gRPC as it is currently done in ScalaPB, 
-it would be great to help reduce writing boilerplate code and standardize on code by adding code generation for:
+it would be great to help reduce writing boilerplate main and test code by adding code generation for:
 
 Following would be generated based on https://github.com/aksharp/grpc-poc/blob/master/src/main/protobuf/hello.proto
 
