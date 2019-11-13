@@ -1,0 +1,6 @@
+.idea
+target
+project/target
+poc.proto
+UserId.scala
+swagger.sh
