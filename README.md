@@ -1,4 +1,4 @@
-ScalaPB feature request: 
+# ScalaPB feature request: 
 
 In addition to generating Scala code for GRPC as it is currently done in ScalaPB, 
 it would be great to help reduce writing boilerplate code and standardize on code by adding code generation for:
