@@ -1,8 +1,8 @@
 package aksharp.grpc.mock.client
 
 import aksharp.grpc.client.IGrpcClient
-import aksharp.grpc.mock.services.{GreeterMock, YellerMock}
-import aksharp.grpc.{GreeterGrpc, YellerGrpc}
+import aksharp.grpc.mock.services._
+import aksharp.grpc._
 
 case class GrpcMockClient(
                            // for each grpc service
