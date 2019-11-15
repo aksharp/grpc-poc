@@ -1,6 +1,6 @@
 package aksharp.grpc.server
 
-import aksharp.grpc.server.impl.{GreeterImpl, YellerImpl}
+import aksharp.grpc.services.{GreeterImpl, YellerImpl}
 
 import scala.concurrent.ExecutionContext
 

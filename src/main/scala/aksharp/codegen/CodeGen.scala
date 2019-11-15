@@ -58,7 +58,7 @@ object CodeGen extends App {
     contents = grpcMockClient
   )
 
-  val services = generatedFileObject
+  generatedFileObject
     .javaDescriptor.getServices.asScala
     .map(s => {
       val serviceMock = GenerateServiceMock(
@@ -72,9 +72,50 @@ object CodeGen extends App {
         scalaClass = s"${s.getName}Mock",
         contents = serviceMock
       )
-
     })
 
+    generatedFileObject
+    .javaDescriptor.getServices.asScala
+    .map(s => {
+      val serviceImpl = GenerateServiceImpl(
+        s = s,
+        packageName = basePackageName
+      )
+
+      WriteToDisk(
+        basePath = generatedBaseMainPath,
+        packageName = s"$basePackageName.services",
+        scalaClass = s"${s.getName}Impl",
+        contents = serviceImpl
+      )
+    })
+
+
+
+}
+
+object GenerateServiceImpl {
+  def apply(
+             s: ServiceDescriptor,
+             packageName: String
+           ): String = {
+    s"""
+       |package ${packageName}.server.impl
+       |
+       |import ${packageName}._
+       |
+       |import scala.concurrent.Future
+       |
+       |class ${s.getName}Impl extends ${s.getName}Grpc.${s.getName} {
+       |
+       |${s.getMethods.asScala.map(m => {
+        s"  override def ${m.getName.head.toLower}${m.getName.tail}(request: ${m.getInputType.getName}): Future[${m.getOutputType.getName}] = ???"
+      }).mkString("\n")
+    }
+       |}
+       |
+       |""".stripMargin
+  }
 }
 
 object TypeMapper {

@@ -1,4 +1,4 @@
-package aksharp.grpc.server.impl
+package aksharp.grpc.services
 
 import aksharp.grpc.{GreeterGrpc, HelloReply, HelloRequest}
 
