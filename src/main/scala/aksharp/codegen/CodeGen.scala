@@ -8,23 +8,41 @@ import scalapb.GeneratedFileObject
 
 import scala.jdk.CollectionConverters._
 
-object CodeGen extends App {
-
+object CodeGenFromScalaPB extends App {
   val port = 50051
   val host = "localhost"
-  val negotiationType = "NegotiationType.PLAINTEXT"
-  val basePackageName = "generated.aksharp.grpc"
-  val generatedFileObject: GeneratedFileObject = HelloProto
+  val basePackageName = "generated.aksharp.grpc" // where generated code should live
+  val generatedFileObject: GeneratedFileObject = HelloProto // ScalaPB generated Proto file
 
-  val generatedBaseMainPath = "src/main"
-  val generatedBaseTestPath = "src/test"
+  CodeGen(
+    port = port,
+    host = host,
+    basePackageName = basePackageName,
+    generatedFileObject = generatedFileObject
+  )
+}
+
+case class CodeGen(
+               port: Int,
+               host: String,
+               basePackageName: String,
+               generatedFileObject: GeneratedFileObject,
+               generatedBaseMainPath: String = "src/main/scala",
+               generatedBaseTestPath: String = "src/test/scala"
+             ) {
+
+
+  val negotiationType = "NegotiationType.PLAINTEXT" // alternatively TLS, but should be ok hardcoded for now.
+
+  val javaPackage = generatedFileObject.javaDescriptor.getOptions.getJavaPackage
 
   val grpcClientText = GenerateGrpcClient(
     generatedFileObject = generatedFileObject,
     port = port,
     host = host,
     negotiationType = negotiationType,
-    basePackageName = basePackageName
+    basePackageName = basePackageName,
+    javaPackage = javaPackage
   )
 
   WriteToDisk(
@@ -36,7 +54,8 @@ object CodeGen extends App {
 
   val iGrpcClientText = GenerateIGrpcClient(
     generatedFileObject = generatedFileObject,
-    packageName = basePackageName
+    packageName = basePackageName,
+    javaPackage = javaPackage
   )
 
   WriteToDisk(
@@ -48,11 +67,12 @@ object CodeGen extends App {
 
   val grpcMockClient = GenerateGrpcMockClient(
     generatedFileObject = generatedFileObject,
-    packageName = basePackageName
+    packageName = basePackageName,
+    javaPackage = javaPackage
   )
 
   WriteToDisk(
-    basePath = generatedBaseMainPath,
+    basePath = generatedBaseTestPath,
     packageName = s"$basePackageName.mock.client",
     scalaClass = "GrpcMockClient",
     contents = grpcMockClient
@@ -64,11 +84,12 @@ object CodeGen extends App {
     .map(s => {
       val serviceMock = GenerateServiceMock(
         s = s,
-        packageName = basePackageName
+        packageName = basePackageName,
+        javaPackage = javaPackage
       )
 
       WriteToDisk(
-        basePath = generatedBaseMainPath,
+        basePath = generatedBaseTestPath,
         packageName = s"$basePackageName.mock.services",
         scalaClass = s"${s.getName}Mock",
         contents = serviceMock
@@ -76,12 +97,13 @@ object CodeGen extends App {
     })
 
   // services
-    generatedFileObject
+  generatedFileObject
     .javaDescriptor.getServices.asScala
     .map(s => {
       val serviceImpl = GenerateServiceImpl(
         s = s,
-        packageName = basePackageName
+        packageName = basePackageName,
+        javaPackage = javaPackage
       )
 
       WriteToDisk(
@@ -96,9 +118,9 @@ object CodeGen extends App {
   val server = GenerateGrpcServer(
     generatedFileObject = generatedFileObject,
     port = port,
-    basePackageName = basePackageName
+    basePackageName = basePackageName,
+    javaPackage = javaPackage
   )
-
 
   WriteToDisk(
     basePath = generatedBaseMainPath,
@@ -107,7 +129,56 @@ object CodeGen extends App {
     contents = server
   )
 
+  val grpcServerMain = GenerateGrpcServerMain(
+    generatedFileObject = generatedFileObject,
+    basePackageName = basePackageName
+  )
 
+  WriteToDisk(
+    basePath = generatedBaseMainPath,
+    packageName = s"$basePackageName.server",
+    scalaClass = "GrpcServerMain",
+    contents = grpcServerMain
+  )
+
+}
+
+object GenerateGrpcServerMainRunServiceParams {
+  def apply(
+             generatedFileObject: GeneratedFileObject
+           ): String = {
+    generatedFileObject
+      .javaDescriptor.getServices.asScala
+      .map(s => {
+        s"    ${s.getName.head.toLower}${s.getName.tail} = new ${s.getName}Impl"
+      }).mkString(",   \n")
+  }
+}
+
+object GenerateGrpcServerMain {
+  def apply(
+             generatedFileObject: GeneratedFileObject,
+             basePackageName: String
+           ): String = {
+    s"""
+       |package $basePackageName.server
+       |
+       |import $basePackageName.services._
+       |
+       |import scala.concurrent.ExecutionContext
+       |
+       |object GrpcServerMain extends App {
+       |
+       |  implicit val ec = ExecutionContext.global
+       |
+       |  GrpcServer.run(
+       |${GenerateGrpcServerMainRunServiceParams(generatedFileObject)}
+       |  )
+       |
+       |}
+       |
+       |""".stripMargin
+  }
 }
 
 object GenerateGrpcServerAddServices {
@@ -138,12 +209,13 @@ object GenerateGrpcServer {
   def apply(
              generatedFileObject: GeneratedFileObject,
              port: Int,
-             basePackageName: String
+             basePackageName: String,
+             javaPackage: String
            ): String = {
     s"""
        |package $basePackageName.server
        |
-       |import $basePackageName._
+       |import $javaPackage._
        |import com.typesafe.scalalogging.LazyLogging
        |import io.grpc.Server
        |import io.grpc.netty.NettyServerBuilder
@@ -189,18 +261,20 @@ object GenerateGrpcServer {
 object GenerateServiceImpl {
   def apply(
              s: ServiceDescriptor,
-             packageName: String
+             packageName: String,
+             javaPackage: String
            ): String = {
     s"""
-       |package ${packageName}.server.impl
+       |package ${packageName}.services
        |
-       |import ${packageName}._
+       |import $javaPackage._
        |
        |import scala.concurrent.Future
        |
        |class ${s.getName}Impl extends ${s.getName}Grpc.${s.getName} {
        |
-       |${s.getMethods.asScala.map(m => {
+       |${
+      s.getMethods.asScala.map(m => {
         s"  override def ${m.getName.head.toLower}${m.getName.tail}(request: ${m.getInputType.getName}): Future[${m.getOutputType.getName}] = ???"
       }).mkString("\n")
     }
@@ -241,7 +315,6 @@ object GenerateMockMessage {
   private def getGeneratorForType(
                                    scalaType: String
                                  ): String = {
-
 
 
     val generators = Map(
@@ -301,13 +374,13 @@ object GenerateServiceMockInner {
        |case class ${s.getName}Mock(
        |${
       s.getMethods.asScala.map(m => {
-        s"  ${m.getName.head.toLower}${m.getName.tail}: ${m.getInputType.getName} => ${m.getOutputType.getName} = _ => Future.successful(a${m.getOutputType.getName}())"
+        s"  ${m.getName.head.toLower}${m.getName.tail}Mock: ${m.getInputType.getName} => Future[${m.getOutputType.getName}] = _ => Future.successful(a${m.getOutputType.getName}())"
       }).mkString(",\n")
     }
        |) extends ${s.getName}Grpc.${s.getName} {
        |${
       s.getMethods.asScala.map(m => {
-        s"  override def ${m.getName.head.toLower}${m.getName.tail}(request: ${m.getInputType.getName}): Future[${m.getOutputType.getName}] = ${m.getName}Mock(request)"
+        s"  override def ${m.getName.head.toLower}${m.getName.tail}(request: ${m.getInputType.getName}): Future[${m.getOutputType.getName}] = ${m.getName.head.toLower}${m.getName.tail}Mock(request)"
       }).mkString("\n")
     }
        |}
@@ -318,13 +391,13 @@ object GenerateServiceMockInner {
 object GenerateServiceMock {
   def apply(
              s: ServiceDescriptor,
-             packageName: String
+             packageName: String,
+             javaPackage: String
            ): String = {
     s"""
        |package $packageName.mock.services
        |
-       |import $packageName.mock.services.${s.getName}Mock._
-       |import $packageName._
+       |import $javaPackage._
        |import org.scalacheck.Gen
        |import ${s.getName}Mock._
        |import scala.concurrent.Future
@@ -355,14 +428,15 @@ object GenerateGrpcMockClientInner {
 object GenerateGrpcMockClient {
   def apply(
              generatedFileObject: GeneratedFileObject,
-             packageName: String
+             packageName: String,
+             javaPackage: String
            ): String = {
     s"""
        |package $packageName.mock.client
        |
+       |import $javaPackage._
        |import $packageName.client.IGrpcClient
        |import $packageName.mock.services._
-       |import $packageName._
        |
        |case class GrpcMockClient(
        |${GenerateGrpcMockClientInner(generatedFileObject)}
@@ -374,7 +448,8 @@ object GenerateGrpcMockClient {
 object GenerateIGrpcClient {
   def apply(
              generatedFileObject: GeneratedFileObject,
-             packageName: String
+             packageName: String,
+             javaPackage: String
            ): String = {
     s"""
        |package $packageName.client
@@ -382,7 +457,7 @@ object GenerateIGrpcClient {
        |${
       generatedFileObject.javaDescriptor.getServices.asScala
         .map(s => {
-          s"import $packageName.${s.getName}Grpc.${s.getName}"
+          s"import $javaPackage.${s.getName}Grpc.${s.getName}"
         }).mkString("\n")
     }
        |
@@ -406,12 +481,13 @@ object GenerateGrpcClient {
              port: Int,
              host: String,
              negotiationType: String,
-             basePackageName: String
+             basePackageName: String,
+             javaPackage: String
            ): String = {
     s"""
        |package $basePackageName.client
        |
-       |import $basePackageName.{GreeterGrpc, YellerGrpc}
+       |import $javaPackage._
        |import io.grpc.netty.{NegotiationType, NettyChannelBuilder}
        |
        |object GrpcClient extends IGrpcClient {
@@ -425,10 +501,12 @@ object GenerateGrpcClient {
       generatedFileObject.javaDescriptor.getServices.asScala
         .map(s => {
           s"""
-  lazy val greeter: ${s.getName}Grpc.${s.getName}Stub = ${s.getName}Grpc.stub(
+  lazy val ${s.getName.head.toLower}${s.getName.tail}: ${s.getName}Grpc.${s.getName}Stub = ${s.getName}Grpc.stub(
     channel = NettyChannelBuilder
       .forAddress(host, port)
       .negotiationType(negotiationType)
+      .build
+    )
   """
         }).
         mkString("\n")
