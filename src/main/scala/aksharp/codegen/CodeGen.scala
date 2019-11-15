@@ -58,6 +58,7 @@ object CodeGen extends App {
     contents = grpcMockClient
   )
 
+  // mock services
   generatedFileObject
     .javaDescriptor.getServices.asScala
     .map(s => {
@@ -74,6 +75,7 @@ object CodeGen extends App {
       )
     })
 
+  // services
     generatedFileObject
     .javaDescriptor.getServices.asScala
     .map(s => {
@@ -91,7 +93,97 @@ object CodeGen extends App {
     })
 
 
+  val server = GenerateGrpcServer(
+    generatedFileObject = generatedFileObject,
+    port = port,
+    basePackageName = basePackageName
+  )
 
+
+  WriteToDisk(
+    basePath = generatedBaseMainPath,
+    packageName = s"$basePackageName.server",
+    scalaClass = "GrpcServer",
+    contents = server
+  )
+
+
+}
+
+object GenerateGrpcServerAddServices {
+  def apply(
+             generatedFileObject: GeneratedFileObject
+           ): String = {
+    generatedFileObject
+      .javaDescriptor.getServices.asScala
+      .map(s => {
+        s"      .addService(${s.getName}Grpc.bindService(${s.getName.head.toLower}${s.getName.tail}, ec))"
+      }).mkString("     \n")
+  }
+}
+
+object GenerateGrpcServerRunServiceParams {
+  def apply(
+             generatedFileObject: GeneratedFileObject
+           ): String = {
+    generatedFileObject
+      .javaDescriptor.getServices.asScala
+      .map(s => {
+        s"    ${s.getName.head.toLower}${s.getName.tail}: ${s.getName}Grpc.${s.getName}"
+      }).mkString(",    \n")
+  }
+}
+
+object GenerateGrpcServer {
+  def apply(
+             generatedFileObject: GeneratedFileObject,
+             port: Int,
+             basePackageName: String
+           ): String = {
+    s"""
+       |package $basePackageName.server
+       |
+       |import $basePackageName._
+       |import com.typesafe.scalalogging.LazyLogging
+       |import io.grpc.Server
+       |import io.grpc.netty.NettyServerBuilder
+       |import scala.concurrent.ExecutionContext
+       |
+       |object GrpcServer extends LazyLogging { self =>
+       |  private[this] var server: Server = null
+       |
+       |  private val port = $port
+       |
+       |  def run(
+       |${GenerateGrpcServerRunServiceParams(generatedFileObject)}
+       |)
+       |(implicit ec: ExecutionContext): Unit = {
+       |    server = NettyServerBuilder
+       |      .forPort(port)
+       |${GenerateGrpcServerAddServices(generatedFileObject)}
+       |      .build
+       |      .start
+       |
+       |    logger.info("Server started, listening on " + port)
+       |    sys.addShutdownHook {
+       |      System.err.println("*** shutting down gRPC server since JVM is shutting down")
+       |      self.stop()
+       |      System.err.println("*** server shut down")
+       |    }
+       |
+       |    server.awaitTermination()
+       |  }
+       |
+       |  def stop(): Unit = {
+       |    if (server != null) {
+       |      server.shutdownNow()
+       |    }
+       |  }
+       |
+       |}
+       |
+       |""".stripMargin
+  }
 }
 
 object GenerateServiceImpl {

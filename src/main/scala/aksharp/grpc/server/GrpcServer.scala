@@ -1,8 +1,9 @@
 package aksharp.grpc.server
 
-import aksharp.grpc.{GreeterGrpc, YellerGrpc}
+import aksharp.grpc._
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Server
+import io.grpc.netty.InternalProtocolNegotiator.ProtocolNegotiator
 import io.grpc.netty.NettyServerBuilder
 
 import scala.concurrent.ExecutionContext
