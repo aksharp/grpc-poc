@@ -1,7 +1,9 @@
 package aksharp.codegen
 
 import aksharp.codegen.TypeMapper._
-import aksharp.grpc.HelloProto
+import aksharp.grpc.{HelloProto, SerdeProto}
+import aksharp.grpc.poc.PocProto
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Descriptors.FieldDescriptor.JavaType
 import com.google.protobuf.Descriptors.ServiceDescriptor
 import scalapb.GeneratedFileObject
@@ -12,24 +14,34 @@ object CodeGenFromScalaPB extends App {
   val port = 50051
   val host = "localhost"
   val basePackageName = "generated.aksharp.grpc" // where generated code should live
-  val generatedFileObject: GeneratedFileObject = HelloProto // ScalaPB generated Proto file
+  //  val generatedFileObject: GeneratedFileObject = HelloProto // ScalaPB generated Proto file
 
-  CodeGen(
-    port = port,
-    host = host,
-    basePackageName = basePackageName,
-    generatedFileObject = generatedFileObject
-  )
+  // multiple proto files are not yet working. They'll just overwrite previous file.
+  // this work is TBD to create a single Server/Client
+  Seq(
+    SerdeProto
+    //    HelloProto,
+    //    PocProto
+  ).foreach { proto =>
+    CodeGen(
+      port = port,
+      host = host,
+      basePackageName = basePackageName,
+      generatedFileObject = proto
+    )
+  }
+
+
 }
 
 case class CodeGen(
-               port: Int,
-               host: String,
-               basePackageName: String,
-               generatedFileObject: GeneratedFileObject,
-               generatedBaseMainPath: String = "src/main/scala",
-               generatedBaseTestPath: String = "src/test/scala"
-             ) {
+                    port: Int,
+                    host: String,
+                    basePackageName: String,
+                    generatedFileObject: GeneratedFileObject,
+                    generatedBaseMainPath: String = "src/main/scala",
+                    generatedBaseTestPath: String = "src/test/scala"
+                  ) {
 
 
   val negotiationType = "NegotiationType.PLAINTEXT" // alternatively TLS, but should be ok hardcoded for now.
@@ -289,16 +301,18 @@ object TypeMapper {
     JavaType.BOOLEAN -> "Boolean",
     JavaType.BYTE_STRING -> "Array[Byte]",
     JavaType.DOUBLE -> "Double",
-    JavaType.ENUM -> "JavaType.ENUM is not supported",
     JavaType.FLOAT -> "Float",
     JavaType.INT -> "Int",
     JavaType.LONG -> "Long",
-    JavaType.MESSAGE -> "JavaType.MESSAGE is not supported",
     JavaType.STRING -> "String"
   )
 
-  def toScalaType(javaType: JavaType): String = {
-    m.getOrElse(javaType, s"Could not find match for JavaType: ${javaType.toString}")
+  def toScalaType(fileDescriptor: Descriptors.FieldDescriptor): String = {
+    fileDescriptor.getJavaType match {
+      case JavaType.MESSAGE => fileDescriptor.toProto.getTypeName.replaceAll("\\.", "")
+      case JavaType.ENUM => "JavaType.ENUM is not yet supported"
+      case javaType => m.getOrElse(javaType, s"Could not find match for JavaType: ${javaType.toString}")
+    }
   }
 }
 
@@ -327,7 +341,10 @@ object GenerateMockMessage {
       "Array[Byte]" -> "Gen.alphaNumStr.sample.get.getBytes"
     )
 
-    generators.getOrElse(scalaType, s"Generator not found for Scala Type $scalaType")
+    generators.getOrElse(
+      scalaType,
+      s"a$scalaType()"
+    )
 
   }
 
@@ -335,21 +352,49 @@ object GenerateMockMessage {
                                         messageType: com.google.protobuf.Descriptors.Descriptor
                                       ): String = {
     messageType.getFields.asScala.map(f => {
-      val scalaType: String = toScalaType(f.getJavaType)
-      s"${f.getName}: $scalaType = ${getGeneratorForType(scalaType)}"
+      val scalaType: String = toScalaType(f)
+      if (f.getJavaType == JavaType.MESSAGE)
+        s"${f.getName}: Option[$scalaType] = ${getGeneratorForType(scalaType)}"
+      else
+        s"${f.getName}: $scalaType = ${getGeneratorForType(scalaType)}"
     }).mkString(",\n")
   }
 
   def apply(
-             messageType: com.google.protobuf.Descriptors.Descriptor
+             messageType: com.google.protobuf.Descriptors.Descriptor,
+             innerMessage: Boolean = false
            ): String = {
-    s"""
-       |  def a${messageType.getName}(
-       |                    ${argumentListWithDefaults(messageType)}
-       |                 ): ${messageType.getName} = ${messageType.getName}(
+
+    val innerMessages: String = messageType.getFields.asScala.foldLeft("") {
+      case (acc, f) => {
+        if (f.getJavaType == JavaType.MESSAGE)
+          acc + "\n\n" + GenerateMockMessage(
+            messageType = f.getMessageType,
+            innerMessage = true
+          )
+        else
+          acc
+      }
+    }
+
+    val message = if (innerMessage)
+      s"""
+         |  def a${messageType.getName}(
+         |                    ${argumentListWithDefaults(messageType)}
+         |                 ): Option[${messageType.getName}] = Option(${messageType.getName}(
         ${fieldAssignmentList(messageType)}
-       |  )
-       |""".stripMargin
+         |  ))
+         |""".stripMargin
+    else
+      s"""
+         |  def a${messageType.getName}(
+         |                    ${argumentListWithDefaults(messageType)}
+         |                 ): ${messageType.getName} = ${messageType.getName}(
+        ${fieldAssignmentList(messageType)}
+         |  )
+         |""".stripMargin
+
+    innerMessages + "\n\n" + message
   }
 }
 

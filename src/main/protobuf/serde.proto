@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+import "scalapb/scalapb.proto";
+
+option java_package = "aksharp.grpc";
+
+option (scalapb.options) = {
+  scope: FILE
+  package_name: "aksharp.grpc"
+  flat_package: true
+  single_file: true
+  lenses: true
+};
+
+//package com.example.protos;
+
+service JsonCsvSerde {
+    rpc ToJson (CsvToJsonRequest) returns (JsonResponse) {}
+    rpc ToCsv (JsonToCsvRequest) returns (CsvResponse) {}
+}
+
+service JsonScalaSerde {
+    rpc ToJson (ScalaToJsonRequest) returns (JsonResponse) {}
+    rpc ToScala (JsonToScalaRequest) returns (ScalaResponse) {}
+}
+
+message JsonAsString {
+    string json = 1;
+}
+
+message JsonToCsvRequest {
+    JsonAsString json = 1;
+    bool immutable = 2;
+}
+
+message JsonResponse {
+    JsonAsString json = 1;
+    bool minified = 2;
+}
+
+message CsvToJsonRequest {
+    string csv = 1;
+    bool minify = 2;
+}
+
+message CsvResponse {
+    string csv = 1;
+    int32 numberOfRows = 2;
+    int32 numberOfColumns = 3;
+}
+
+message JsonToScalaRequest {
+    JsonAsString json = 1;
+    bool immutable = 2;
+}
+
+message ScalaToJsonRequest {
+    string caseClass = 1;
+    bool minify = 2;
+}
+
+message ScalaResponse {
+    string caseClass = 1;
+}
