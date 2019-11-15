@@ -6,6 +6,7 @@ import org.scalacheck.Gen
 
 import scala.concurrent.Future
 
+// for each grpc service
 object GreeterMock {
   // for each message type
   def aHelloRequest(
