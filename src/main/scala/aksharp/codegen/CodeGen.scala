@@ -153,6 +153,49 @@ case class CodeGen(
     contents = grpcServerMain
   )
 
+  val messages = PackageAllMockMessagesInSingleObjectWithImports(GetAllMessages(
+    generatedFileObject = generatedFileObject
+  ).map(GenerateMockMessage(_)).mkString("\n"))
+
+  WriteToDisk(
+    basePath = generatedBaseTestPath,
+    packageName = s"$basePackageName.mock.messages",
+    scalaClass = "MockMessages",
+    contents = messages
+  )
+
+
+}
+
+
+object PackageAllMockMessagesInSingleObjectWithImports{
+  def apply(messages: String): String = {
+    s"""
+       |package generated.aksharp.grpc.mock.messages
+       |
+       |import aksharp.grpc._
+       |import org.scalacheck.Gen
+       |
+       |object MockMessages {
+       |$messages
+       |}
+       |""".stripMargin
+  }
+}
+
+object GetAllMessages {
+  def apply(generatedFileObject: GeneratedFileObject): Iterable[Descriptors.Descriptor] = {
+    (for {
+      service <- generatedFileObject.javaDescriptor.getServices.asScala
+      method <- service.getMethods.asScala
+    } yield  {
+      Map(
+        method.getInputType.getName -> method.getInputType,
+        method.getOutputType.getName -> method.getOutputType
+      )
+    }).toList.flatten.toMap.values
+
+  }
 }
 
 object GenerateGrpcServerMainRunServiceParams {

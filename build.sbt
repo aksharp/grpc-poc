@@ -31,6 +31,7 @@ libraryDependencies ++= Seq(
   "com.thesamet.scalapb" %% "scalapb-runtime" % scalapbVersion % "protobuf",
   "org.scalacheck" %% "scalacheck" % "1.14.2",
   "org.scalatest" %% "scalatest" % "3.0.8" % Test,
+  "org.scalatra.scalate" %% "scalate-core" % "1.9.5",
 
   // logging
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2",
